@@ -6,21 +6,13 @@ use chrono::prelude::*;
 use std::collections::BTreeMap;
 use backtrace::{Backtrace, BacktraceFrame};
 use std::ptr;
+use rustc_demangle::demangle;
 
 #[cfg(target_os = "macos")]
 use sysctl;
 
 #[cfg(unix)]
 use uname::uname;
-
-#[derive(Debug, Clone)]
-pub struct XSentryAuth {
-    pub version: String,
-    pub timestamp: u64,
-    pub key: String,
-    pub secret: String,
-    pub client: String
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Sdk {
@@ -84,6 +76,8 @@ pub struct Event {
 pub struct StackFrame {
     filename: String,
     function: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    package: Option<String>,
     lineno: u32,
     instruction_addr: String, // 0x...
     symbol_addr: String, // 0x...
@@ -93,25 +87,48 @@ pub struct StackFrame {
 impl StackFrame {
     fn from(frame: &BacktraceFrame, app_name: &str) -> Vec<StackFrame> {
         let frames: Vec<StackFrame> = frame.symbols().iter().filter_map(|symbol| {
-            let function: String = match symbol.name() {
-                Some(v) => v.as_str().unwrap_or("<invalid>").to_owned(),
+            let symbol_name: String = match symbol.name() {
+                Some(v) => demangle(v.as_str().unwrap_or("<invalid>")).to_string(),
                 None => "<unknown>".to_owned()
             };
 
-            if function.starts_with("backtrace::") {
+            if symbol_name.starts_with("backtrace::") {
                 return None;
             }
+
+            let function: String = match symbol_name.starts_with("<") {
+                true => symbol_name.to_owned(),
+                false => {
+                    let fparts: Vec<&str> = symbol_name.split("::").collect();
+                    
+                    if let Some(last) = fparts.last() {
+                        if last.starts_with("h") {
+                            fparts[fparts.len() - 2].to_owned()
+                        } else {
+                            String::from(*last)
+                        }
+                    } else {
+                        symbol_name.to_owned()
+                    }
+                }
+            };
+
+            let package = if function == symbol_name { None } else { Some(symbol_name.to_owned()) };
 
             let filename: String = match symbol.filename() {
                 Some(v) => String::from(v.to_string_lossy()),
                 None => "<unknown>".to_owned()
             };
 
-            let in_app = (&function).starts_with(app_name);
+            let in_app = match &package {
+                &Some(ref v) => v.starts_with(app_name),
+                &None => false
+            };
 
             Some(StackFrame {
                 filename: filename,
                 function: function,
+                package: package,
                 lineno: symbol.lineno().unwrap_or(0),
                 instruction_addr: format!("0x{:x}", frame.ip() as usize),
                 symbol_addr: format!("0x{:x}", symbol.addr().unwrap_or(ptr::null_mut()) as usize),
@@ -179,6 +196,11 @@ impl Stacktrace {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Contexts {
+    os: OsContext,
+    device: DeviceContext
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceContext {
@@ -254,12 +276,6 @@ impl OsContext {
 #[derive(Debug)]
 pub enum EventBuilderError {
     MissingField(&'static str)
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Contexts {
-    os: OsContext,
-    device: DeviceContext
 }
 
 #[derive(Debug, Clone)]
@@ -344,6 +360,11 @@ impl EventBuilder {
         self
     }
 
+    pub fn extra(mut self, extra: BTreeMap<String, String>) -> EventBuilder {
+        self.extra = Some(extra);
+        self
+    }
+
     pub fn build(&self) -> Result<Event, EventBuilderError> {
         if self.logger.is_none() {
             return Err(EventBuilderError::MissingField("logger"));
@@ -376,6 +397,15 @@ impl EventBuilder {
             exception: self.exception.clone()
         })
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct XSentryAuth {
+    pub version: String,
+    pub timestamp: u64,
+    pub key: String,
+    pub secret: String,
+    pub client: String
 }
 
 impl Header for XSentryAuth {

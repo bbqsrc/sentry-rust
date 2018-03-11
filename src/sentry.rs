@@ -93,6 +93,11 @@ impl Sentry {
     }
 }
 
+pub fn stacktrace(package_name: &str) -> Stacktrace {
+    use backtrace::*;
+    Stacktrace::from(Backtrace::new(), &package_name)
+}
+
 #[cfg(test)]
 mod tests {
     use sentry::*;

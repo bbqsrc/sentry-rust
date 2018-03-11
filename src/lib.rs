@@ -9,6 +9,7 @@ extern crate chrono;
 extern crate backtrace;
 extern crate futures;
 extern crate tokio_core;
+extern crate rustc_demangle;
 
 #[cfg(unix)]
 extern crate uname;
