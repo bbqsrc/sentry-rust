@@ -1,7 +1,8 @@
 use url::{Url, ParseError};
 use std::time::{SystemTime, UNIX_EPOCH};
 use reqwest::Error as ReqwestError;
-use reqwest::unstable::async as reqwest;
+// use reqwest::unstable::async as reqwest;
+use reqwest;
 use serde_json;
 use ::models::*;
 use futures::Future;
@@ -13,7 +14,7 @@ pub struct Sentry {
     builder: EventBuilder,
     url: Url,
     store_url: Url,
-    core: RefCell<Core>
+    // core: RefCell<Core>
 }
 
 impl Sentry {
@@ -28,11 +29,11 @@ impl Sentry {
         let core = Core::new().unwrap();
 
         Ok(Sentry {
-            http_client: reqwest::Client::new(&core.handle()),
+            http_client: reqwest::Client::new(), //(&core.handle()),
             builder: EventBuilder::new(),
             url: url,
             store_url: store_url,
-            core: RefCell::new(core)
+            // core: RefCell::new(core)
         })
 
         // TODO: add context.os 
@@ -75,8 +76,10 @@ impl Sentry {
             .body(serde_json::to_string(event).unwrap())
             .send();
 
-        let mut core = self.core.borrow_mut();
-        core.run(request)
+        request
+
+        // let mut core = self.core.borrow_mut();
+        // core.run(request)
     }    
 
     pub fn capture_message(&self, message: &str) -> () {
