@@ -204,7 +204,8 @@ pub struct Contexts {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceContext {
-    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     family: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -220,6 +221,19 @@ pub struct DeviceContext {
 }
 
 impl DeviceContext {
+    #[cfg(windows)]
+    pub fn new() -> DeviceContext {
+        DeviceContext {
+            name: None,
+            family: None,
+            model: None,
+            model_id: None,
+            arch: None,
+            battery_level: None,
+            orientation: None
+        }
+    }
+
     #[cfg(target_os = "macos")]
     pub fn new() -> DeviceContext {
         let info = uname().unwrap();
@@ -230,7 +244,7 @@ impl DeviceContext {
         };
 
         DeviceContext {
-            name: info.nodename,
+            name: Some(info.nodename),
             family: None,
             model: model,
             model_id: None,
@@ -244,7 +258,8 @@ impl DeviceContext {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OsContext {
     name: String,
-    version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     build: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -254,6 +269,17 @@ pub struct OsContext {
 }
 
 impl OsContext {
+    #[cfg(windows)]
+    pub fn new() -> OsContext {
+        OsContext {
+            name: "Windows".to_owned(),
+            version: None,
+            build: None,
+            kernel_version: None,
+            rooted: None
+        }
+    }
+
     #[cfg(unix)]
     pub fn new() -> OsContext {
         let info = uname().unwrap();

@@ -14,8 +14,10 @@ uuid = { version = "0.6", features = ["v4", "serde"] }
 hyper = "0.11"
 chrono = { version = "0.4", features = ["serde"] }
 backtrace = "0.3"
-uname = "0.1"
-sysctl = "0.1.4"
 futures = "0.1"
 tokio-core = "0.1"
 rustc-demangle = "0.1"
+
+[target.'cfg(target_os="macos")'.dependencies]
+uname = "0.1"
+sysctl = "0.1.4"
